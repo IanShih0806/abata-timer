@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <title>Tabata 塔巴塔間歇運動計時器</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            work: '#ef4444',
+            rest: '#3b82f6',
+            prep: '#f59e0b',
+            done: '#10b981'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Noto+Sans+TC:wght@400;600;700;900&display=swap');
+    .font-timer {
+      font-family: 'Teko', sans-serif;
+      line-height: 0.9;
+    }
+    body {
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Circular Progress animation smoothing */
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.1s linear, stroke 0.3s ease;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col justify-between p-4 selection:bg-rose-500 selection:text-white transition-colors duration-500">
+
+  <!-- Header / Top Bar -->
+  <header class="flex items-center justify-between max-w-md w-full mx-auto pt-2 pb-2">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-black text-lg shadow-lg shadow-red-500/30">
+        T
+      </div>
+      <div>
+        <h1 class="text-base font-bold tracking-wide">Tabata Timer</h1>
+        <p class="text-xs text-slate-400">4 分鐘高強度間歇訓練</p>
+      </div>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div class="flex items-center gap-2">
+      <button id="btn-sound" title="切換音效" class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+        <svg id="icon-sound-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+        <svg id="icon-sound-off" class="w-5 h-5 hidden text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path></svg>
+      </button>
+      <button id="btn-settings" title="設定" class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Timer Display -->
+  <main class="flex-1 flex flex-col items-center justify-center max-w-md w-full mx-auto my-2">
+    <!-- Status Badge -->
+    <div class="mb-3 text-center">
+      <div id="phase-badge" class="inline-flex items-center gap-2 px-5 py-1.5 rounded-full text-base font-extrabold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase transition-all duration-300">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="phase-text">準備 (PREPARE)</span>
+      </div>
+    </div>
+
+    <!-- Circular Progress & Giant Digits -->
+    <div class="relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center">
+      <svg class="w-full h-full" viewBox="0 0 200 200">
+        <!-- Track Background -->
+        <circle cx="100" cy="100" r="88" stroke="#1e293b" stroke-width="10" fill="none" />
+        <!-- Progress Bar -->
+        <circle id="progress-ring" class="progress-ring__circle" cx="100" cy="100" r="88" stroke="#f59e0b" stroke-width="10" stroke-linecap="round" fill="none" stroke-dasharray="552.92" stroke-dashoffset="0" />
+      </svg>
+
+      <!-- Center Content -->
+      <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <!-- Big Seconds Number -->
+        <div id="timer-display" class="font-timer text-8xl sm:text-9xl font-bold tracking-tight text-white drop-shadow-md">
+          10
+        </div>
+        <!-- Round Info -->
+        <div class="mt-[-8px] text-sm sm:text-base font-bold text-slate-400 flex items-center gap-1.5">
+          <span>組數</span>
+          <span id="round-display" class="text-white text-lg font-black font-mono">1 / 8</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rounds Visual Indicator (8 Dots) -->
+    <div class="mt-6 w-full px-4">
+      <div class="flex items-center justify-between text-xs text-slate-400 mb-2 font-medium">
+        <span>運動進度</span>
+        <span id="total-remaining-text">剩餘 04:00</span>
+      </div>
+      <div id="rounds-indicator" class="grid grid-cols-8 gap-1.5">
+        <!-- Generated by JS: 8 pills representing rounds -->
+      </div>
+    </div>
+
+    <!-- Screen Wake Lock Note -->
+    <div id="wakelock-tag" class="mt-4 flex items-center gap-1 text-[11px] text-slate-500">
+      <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+      <span>已開啟螢幕常亮 (運動期間不休眠)</span>
+    </div>
+  </main>
+
+  <!-- Controls / Bottom Bar -->
+  <footer class="max-w-md w-full mx-auto pb-4 pt-2">
+    <div class="flex items-center justify-between gap-3">
+      <!-- Reset Button -->
+      <button id="btn-reset" class="flex-1 py-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold rounded-2xl flex items-center justify-center gap-2 border border-slate-700 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>重置</span>
+      </button>
+
+      <!-- Primary Play / Pause Button -->
+      <button id="btn-play-pause" class="flex-[2] py-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 active:scale-95 text-white font-black text-xl rounded-2xl shadow-xl shadow-red-600/30 flex items-center justify-center gap-2 transition">
+        <svg id="icon-play" class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg>
+        <svg id="icon-pause" class="w-6 h-6 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+        <span id="label-play-pause">開始運動</span>
+      </button>
+
+      <!-- Skip Button -->
+      <button id="btn-skip" class="flex-1 py-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold rounded-2xl flex items-center justify-center gap-2 border border-slate-700 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+        <span>下一組</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-slate-100 shadow-2xl">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
+        <h3 class="text-lg font-bold">訓練參數設定</h3>
+        <button id="btn-close-settings" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold">準備時間 (Prep)</div>
+            <div class="text-xs text-slate-400">開始前的倒數準備</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-prep" data-delta="-5">-5</button>
+            <span id="cfg-prep" class="w-10 text-center font-mono font-bold text-base">10s</span>
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-prep" data-delta="5">+5</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold text-red-400">運動衝刺 (Work)</div>
+            <div class="text-xs text-slate-400">標準 Tabata 建議 20 秒</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-work" data-delta="-5">-5</button>
+            <span id="cfg-work" class="w-10 text-center font-mono font-bold text-base text-red-400">20s</span>
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-work" data-delta="5">+5</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold text-blue-400">間隔休息 (Rest)</div>
+            <div class="text-xs text-slate-400">標準 Tabata 建議 10 秒</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-rest" data-delta="-5">-5</button>
+            <span id="cfg-rest" class="w-10 text-center font-mono font-bold text-base text-blue-400">10s</span>
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-rest" data-delta="5">+5</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold">重複循環組數 (Sets)</div>
+            <div class="text-xs text-slate-400">標準為 8 組 (4分鐘)</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-rounds" data-delta="-1">-1</button>
+            <span id="cfg-rounds" class="w-10 text-center font-mono font-bold text-base">8</span>
+            <button class="adj-btn px-2.5 py-1 bg-slate-800 rounded-lg hover:bg-slate-700" data-target="cfg-rounds" data-delta="1">+1</button>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+          <span class="font-medium text-slate-300">語音報讀 (Work/Rest)</span>
+          <input type="checkbox" id="cfg-voice" class="w-5 h-5 accent-red-500 rounded" checked>
+        </div>
+      </div>
+
+      <div class="mt-6 flex gap-2">
+        <button id="btn-reset-defaults" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-semibold">
+          還原預設
+        </button>
+        <button id="btn-apply-settings" class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-xs text-white font-bold">
+          套用並完成
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tabata App Logic
+    const CIRCUMFERENCE = 2 * Math.PI * 88; // 552.92
+    const ring = document.getElementById('progress-ring');
+    ring.style.strokeDasharray = `${CIRCUMFERENCE} ${CIRCUMFERENCE}`;
+
+    // App State Configuration
+    const config = {
+      prepTime: 10,
+      workTime: 20,
+      restTime: 10,
+      totalRounds: 8,
+      soundEnabled: true,
+      voiceEnabled: true
+    };
+
+    // Runtime state
+    let state = {
+      phase: 'PREP', // 'PREP', 'WORK', 'REST', 'DONE'
+      currentRound: 1,
+      timeLeft: config.prepTime,
+      phaseDuration: config.prepTime,
+      isRunning: false,
+      timerId: null,
+      lastTickTime: null,
+      wakeLock: null
+    };
+
+    // Web Audio Synthesizer (No external mp3 required)
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playBeep(freq = 600, duration = 0.15, type = 'sine') {
+      if (!config.soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio error:', e);
+      }
+    }
+
+    function playDoubleTone() {
+      playBeep(880, 0.2, 'triangle');
+      setTimeout(() => playBeep(1100, 0.35, 'triangle'), 150);
+    }
+
+    function speak(text) {
+      if (!config.voiceEnabled || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.1;
+        utter.lang = 'zh-TW';
+        window.speechSynthesis.speak(utter);
+      } catch(e) {}
+    }
+
+    function triggerVibrate(pattern = [150]) {
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate(pattern); } catch (e) {}
+      }
+    }
+
+    // Wake Lock to keep screen awake during workout
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          state.wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+          console.log('WakeLock error:', err);
+        }
+      }
+    }
+    function releaseWakeLock() {
+      if (state.wakeLock) {
+        state.wakeLock.release().then(() => state.wakeLock = null).catch(() => {});
+      }
+    }
+
+    // UI Elements
+    const timerDisplay = document.getElementById('timer-display');
+    const phaseText = document.getElementById('phase-text');
+    const phaseBadge = document.getElementById('phase-badge');
+    const roundDisplay = document.getElementById('round-display');
+    const totalRemainingText = document.getElementById('total-remaining-text');
+    const roundsContainer = document.getElementById('rounds-indicator');
+    const btnPlayPause = document.getElementById('btn-play-pause');
+    const iconPlay = document.getElementById('icon-play');
+    const iconPause = document.getElementById('icon-pause');
+    const labelPlayPause = document.getElementById('label-play-pause');
+    const btnReset = document.getElementById('btn-reset');
+    const btnSkip = document.getElementById('btn-skip');
+    const btnSound = document.getElementById('btn-sound');
+    const iconSoundOn = document.getElementById('icon-sound-on');
+    const iconSoundOff = document.getElementById('icon-sound-off');
+
+    // Build Round Indicators
+    function renderRoundIndicators() {
+      roundsContainer.innerHTML = '';
+      for (let i = 1; i <= config.totalRounds; i++) {
+        const pill = document.createElement('div');
+        pill.className = `h-2 rounded-full transition-all duration-300 ${
+          i < state.currentRound ? 'bg-red-500' :
+          i === state.currentRound && state.phase === 'WORK' ? 'bg-red-400 ring-2 ring-red-400/50 animate-pulse' :
+          i === state.currentRound && state.phase === 'REST' ? 'bg-blue-400 ring-2 ring-blue-400/50' :
+          'bg-slate-800'
+        }`;
+        roundsContainer.appendChild(pill);
+      }
+    }
+
+    // Calculate total workout time remaining
+    function calculateTotalRemaining() {
+      if (state.phase === 'DONE') return 0;
+      let total = 0;
+      if (state.phase === 'PREP') {
+        total += state.timeLeft;
+        total += config.totalRounds * config.workTime;
+        total += (config.totalRounds - 1) * config.restTime;
+      } else {
+        total += state.timeLeft;
+        const roundsLeftAfterThis = config.totalRounds - state.currentRound;
+        if (state.phase === 'WORK') {
+          total += (roundsLeftAfterThis) * (config.workTime + config.restTime);
+        } else if (state.phase === 'REST') {
+          total += roundsLeftAfterThis * config.workTime + (roundsLeftAfterThis - 1 > 0 ? (roundsLeftAfterThis - 1) * config.restTime : 0);
+        }
+      }
+      return Math.max(0, Math.ceil(total));
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    // Update Display
+    function updateUI() {
+      const displaySecs = Math.ceil(state.timeLeft);
+      timerDisplay.textContent = displaySecs;
+      roundDisplay.textContent = `${state.currentRound} / ${config.totalRounds}`;
+      totalRemainingText.textContent = `剩餘 ${formatTime(calculateTotalRemaining())}`;
+
+      // Progress Ring update
+      const progressFraction = state.timeLeft / state.phaseDuration;
+      const offset = CIRCUMFERENCE * (1 - progressFraction);
+      ring.style.strokeDashoffset = offset;
+
+      // Color themes per phase
+      if (state.phase === 'PREP') {
+        phaseText.textContent = '準備 (PREPARE)';
+        phaseBadge.className = 'inline-flex items-center gap-2 px-5 py-1.5 rounded-full text-base font-extrabold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase';
+        ring.style.stroke = '#f59e0b';
+        document.body.className = 'bg-slate-950 text-white min-h-screen flex flex-col justify-between p-4 selection:bg-amber-500 transition-colors duration-500';
+      } else if (state.phase === 'WORK') {
+        phaseText.textContent = `衝刺運動 (WORK #${state.currentRound})`;
+        phaseBadge.className = 'inline-flex items-center gap-2 px-5 py-1.5 rounded-full text-base font-extrabold tracking-wider bg-red-600/25 text-red-400 border border-red-500/40 uppercase shadow-lg shadow-red-500/20';
+        ring.style.stroke = '#ef4444';
+        document.body.className = 'bg-red-950/30 text-white min-h-screen flex flex-col justify-between p-4 selection:bg-red-500 transition-colors duration-500';
+      } else if (state.phase === 'REST') {
+        phaseText.textContent = `間隔休息 (REST #${state.currentRound})`;
+        phaseBadge.className = 'inline-flex items-center gap-2 px-5 py-1.5 rounded-full text-base font-extrabold tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase';
+        ring.style.stroke = '#3b82f6';
+        document.body.className = 'bg-blue-950/30 text-white min-h-screen flex flex-col justify-between p-4 selection:bg-blue-500 transition-colors duration-500';
+      } else if (state.phase === 'DONE') {
+        phaseText.textContent = '訓練完成！(GREAT JOB!)';
+        phaseBadge.className = 'inline-flex items-center gap-2 px-5 py-1.5 rounded-full text-base font-extrabold tracking-wider bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 uppercase';
+        ring.style.stroke = '#10b981';
+        timerDisplay.textContent = 'DONE';
+        document.body.className = 'bg-emerald-950/30 text-white min-h-screen flex flex-col justify-between p-4 selection:bg-emerald-500 transition-colors duration-500';
+      }
+
+      renderRoundIndicators();
+    }
+
+    // Step to Next Phase
+    function advancePhase() {
+      if (state.phase === 'PREP') {
+        state.phase = 'WORK';
+        state.timeLeft = config.workTime;
+        state.phaseDuration = config.workTime;
+        playDoubleTone();
+        speak('開始運動！');
+        triggerVibrate([200, 100, 200]);
+      } else if (state.phase === 'WORK') {
+        if (state.currentRound >= config.totalRounds) {
+          // Completed
+          state.phase = 'DONE';
+          state.timeLeft = 0;
+          state.phaseDuration = 1;
+          pauseTimer();
+          playDoubleTone();
+          setTimeout(() => playDoubleTone(), 300);
+          speak('訓練全部完成，太棒了！');
+          triggerVibrate([300, 200, 300, 200, 500]);
+          updateUI();
+          return;
+        } else {
+          state.phase = 'REST';
+          state.timeLeft = config.restTime;
+          state.phaseDuration = config.restTime;
+          playDoubleTone();
+          speak('休息十秒');
+          triggerVibrate([200]);
+        }
+      } else if (state.phase === 'REST') {
+        state.currentRound++;
+        state.phase = 'WORK';
+        state.timeLeft = config.workTime;
+        state.phaseDuration = config.workTime;
+        playDoubleTone();
+        speak(`第${state.currentRound}組，衝刺！`);
+        triggerVibrate([200, 100, 200]);
+      }
+      updateUI();
+    }
+
+    // Timer Loop using delta-time
+    function tick() {
+      if (!state.isRunning) return;
+      const now = performance.now();
+      const delta = (now - state.lastTickTime) / 1000;
+      state.lastTickTime = now;
+
+      const prevInt = Math.ceil(state.timeLeft);
+      state.timeLeft -= delta;
+      const curInt = Math.ceil(state.timeLeft);
+
+      // Countdown beep at 3, 2, 1
+      if (curInt !== prevInt && curInt > 0 && curInt <= 3) {
+        playBeep(440, 0.1);
+        triggerVibrate([60]);
+      }
+
+      if (state.timeLeft <= 0) {
+        advancePhase();
+      } else {
+        updateUI();
+      }
+
+      if (state.isRunning) {
+        requestAnimationFrame(tick);
+      }
+    }
+
+    function startTimer() {
+      getAudioContext();
+      state.isRunning = true;
+      state.lastTickTime = performance.now();
+      iconPlay.classList.add('hidden');
+      iconPause.classList.remove('hidden');
+      labelPlayPause.textContent = '暫停';
+      requestWakeLock();
+      requestAnimationFrame(tick);
+    }
+
+    function pauseTimer() {
+      state.isRunning = false;
+      iconPlay.classList.remove('hidden');
+      iconPause.classList.add('hidden');
+      labelPlayPause.textContent = state.phase === 'DONE' ? '重新開始' : '繼續';
+      releaseWakeLock();
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      state.phase = 'PREP';
+      state.currentRound = 1;
+      state.timeLeft = config.prepTime;
+      state.phaseDuration = config.prepTime;
+      labelPlayPause.textContent = '開始運動';
+      updateUI();
+    }
+
+    // Event Listeners
+    btnPlayPause.addEventListener('click', () => {
+      if (state.phase === 'DONE') {
+        resetTimer();
+        startTimer();
+      } else if (state.isRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    btnReset.addEventListener('click', resetTimer);
+
+    btnSkip.addEventListener('click', () => {
+      if (state.phase !== 'DONE') {
+        advancePhase();
+      }
+    });
+
+    btnSound.addEventListener('click', () => {
+      config.soundEnabled = !config.soundEnabled;
+      iconSoundOn.classList.toggle('hidden', !config.soundEnabled);
+      iconSoundOff.classList.toggle('hidden', config.soundEnabled);
+    });
+
+    // Settings Modal
+    const settingsModal = document.getElementById('settings-modal');
+    const btnSettings = document.getElementById('btn-settings');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnApplySettings = document.getElementById('btn-apply-settings');
+    const btnResetDefaults = document.getElementById('btn-reset-defaults');
+    const cfgPrep = document.getElementById('cfg-prep');
+    const cfgWork = document.getElementById('cfg-work');
+    const cfgRest = document.getElementById('cfg-rest');
+    const cfgRounds = document.getElementById('cfg-rounds');
+    const cfgVoice = document.getElementById('cfg-voice');
+
+    let tempConfig = { ...config };
+
+    function syncSettingsUI() {
+      cfgPrep.textContent = `${tempConfig.prepTime}s`;
+      cfgWork.textContent = `${tempConfig.workTime}s`;
+      cfgRest.textContent = `${tempConfig.restTime}s`;
+      cfgRounds.textContent = `${tempConfig.totalRounds}`;
+      cfgVoice.checked = tempConfig.voiceEnabled;
+    }
+
+    btnSettings.addEventListener('click', () => {
+      tempConfig = { ...config };
+      syncSettingsUI();
+      settingsModal.classList.remove('hidden');
+    });
+
+    btnCloseSettings.addEventListener('click', () => {
+      settingsModal.classList.add('hidden');
+    });
+
+    document.querySelectorAll('.adj-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.target;
+        const delta = parseInt(btn.dataset.delta, 10);
+        if (target === 'cfg-prep') tempConfig.prepTime = Math.max(0, tempConfig.prepTime + delta);
+        if (target === 'cfg-work') tempConfig.workTime = Math.max(5, tempConfig.workTime + delta);
+        if (target === 'cfg-rest') tempConfig.restTime = Math.max(0, tempConfig.restTime + delta);
+        if (target === 'cfg-rounds') tempConfig.totalRounds = Math.max(1, Math.min(30, tempConfig.totalRounds + delta));
+        syncSettingsUI();
+      });
+    });
+
+    btnResetDefaults.addEventListener('click', () => {
+      tempConfig.prepTime = 10;
+      tempConfig.workTime = 20;
+      tempConfig.restTime = 10;
+      tempConfig.totalRounds = 8;
+      tempConfig.voiceEnabled = true;
+      syncSettingsUI();
+    });
+
+    btnApplySettings.addEventListener('click', () => {
+      config.prepTime = tempConfig.prepTime;
+      config.workTime = tempConfig.workTime;
+      config.restTime = tempConfig.restTime;
+      config.totalRounds = tempConfig.totalRounds;
+      config.voiceEnabled = cfgVoice.checked;
+      settingsModal.classList.add('hidden');
+      resetTimer();
+    });
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        btnPlayPause.click();
+      } else if (e.code === 'KeyR') {
+        resetTimer();
+      } else if (e.code === 'ArrowRight') {
+        btnSkip.click();
+      }
+    });
+
+    // Initial setup
+    resetTimer();
+  </script>
+</body>
+</html>
